@@ -80,10 +80,27 @@ body {
   background: #424245;
 }
 
+.btn:focus {
+  outline: none;
+}
+
+.btn:focus-visible {
+  outline: 2px solid #06c;
+  outline-offset: 2px;
+}
+
 .btn-link {
   background: transparent;
   color: #06c;
   padding: 0;
+  border: none;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 17px;
+}
+
+.btn-link:focus {
+  outline: none;
 }
 
 .btn-link:hover {

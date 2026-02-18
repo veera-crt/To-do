@@ -9,6 +9,7 @@ const App = () => {
   const [editingId, setEditingId] = useState(null);
   const [editValues, setEditValues] = useState({});
   const [isAdding, setIsAdding] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
   const [newRow, setNewRow] = useState({ Date: '', Description: '', Timing: '', Status: '' });
   const [toast, setToast] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
@@ -53,32 +54,46 @@ const App = () => {
   }, [data, searchTerm, statusFilter, sortOrder]);
 
   const handleAction = async (action, originalRow, val) => {
+    if (submitting) return;
+    setSubmitting(true);
+
     const fullIdx = data.findIndex(d => d === originalRow);
     const sheetRowIndex = fullIdx + 2;
 
-    if (action === 'delete' && !window.confirm('Delete this entry?')) return;
+    if (action === 'delete' && !window.confirm('Delete this entry?')) {
+      setSubmitting(false);
+      return;
+    }
 
     let res;
-    if (action === 'save') res = await updateSheetRow(sheetRowIndex, val);
-    else if (action === 'delete') res = await deleteSheetRow(sheetRowIndex);
-    else if (action === 'add') res = await createSheetRow(val);
+    try {
+      if (action === 'save') res = await updateSheetRow(sheetRowIndex, val);
+      else if (action === 'delete') res = await deleteSheetRow(sheetRowIndex);
+      else if (action === 'add') res = await createSheetRow(val);
 
-    if (res.success) {
-      if (action === 'save') {
-        const newData = [...data];
-        newData[fullIdx] = val;
-        setData(newData);
-        setEditingId(null);
-      } else if (action === 'delete') {
-        setData(prev => prev.filter((_, i) => i !== fullIdx));
-      } else if (action === 'add') {
-        setData(prev => [...prev, val]);
-        setIsAdding(false);
-        setNewRow({ ...newRow, Description: '', Timing: '', Status: '' });
+      if (res.success) {
+        if (action === 'save') {
+          const newData = [...data];
+          newData[fullIdx] = val;
+          setData(newData);
+          setEditingId(null);
+        } else if (action === 'delete') {
+          await loadData();
+          setEditingId(null);
+        } else if (action === 'add') {
+          // Instead of just optimistic update, let's reload to be sure
+          await loadData();
+          setIsAdding(false);
+          setNewRow(prev => ({ ...prev, Description: '', Timing: '', Status: '' }));
+        }
+        showToast('Success');
+      } else {
+        showToast('Failed', 'error');
       }
-      showToast('Success');
-    } else {
-      showToast('Failed', 'error');
+    } catch (err) {
+      showToast('Error occurred', 'error');
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -207,11 +222,15 @@ const App = () => {
                         Delete
                       </button>
                       <div className="flex gap-4">
-                        <button onClick={() => setEditingId(null)} className="btn-link">
+                        <button onClick={() => setEditingId(null)} className="btn-link" disabled={submitting}>
                           Cancel
                         </button>
-                        <button onClick={() => handleAction('save', row, editValues)} className="btn">
-                          <Check size={18} />
+                        <button
+                          onClick={() => handleAction('save', row, editValues)}
+                          className="btn"
+                          disabled={submitting}
+                        >
+                          {submitting ? <RefreshCw size={18} className="spinner" /> : <Check size={18} />}
                           Save
                         </button>
                       </div>
@@ -309,11 +328,16 @@ const App = () => {
               </div>
 
               <div className="form-actions">
-                <button onClick={() => setIsAdding(false)} className="btn-link" style={{ flex: 1 }}>
+                <button onClick={() => setIsAdding(false)} className="btn-link" style={{ flex: 1 }} disabled={submitting}>
                   Cancel
                 </button>
-                <button onClick={() => handleAction('add', null, newRow)} className="btn" style={{ flex: 1 }}>
-                  Add Entry
+                <button
+                  onClick={() => handleAction('add', null, newRow)}
+                  className="btn"
+                  style={{ flex: 1 }}
+                  disabled={submitting}
+                >
+                  {submitting ? <RefreshCw size={18} className="spinner" /> : 'Add Entry'}
                 </button>
               </div>
             </motion.div>
